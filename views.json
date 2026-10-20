@@ -2,12 +2,65 @@
   {
     "name": "week",
     "title": "This week",
-    "subtitle": "Health Monitoring for Claude Code: what needs attention, rendered by npm run view",
+    "subtitle": "What needs a person: lead removals, reports owed, tests overdue, drug screens and follow-ups",
     "sections": [
       {
         "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
+        "note": "The same list as /attention. The law first, then the practitioner's programme, then everything else.",
+        "sql": "select item, ref, detail from (select 1 as r, 'remove from lead work now' as item, worker_code as ref, worker || ': blood lead ' || blood_lead || ' ug/dL' as detail from v_lead where standing = 'remove now' union all select 1, 'regulator not sent', ref, worker || ' ' || test_code || ' ' || done_on from v_reports where standing = 'regulator not sent' union all select 2, case when basis = 'law' then 'test overdue (law)' else 'test overdue (programme)' end, worker_code, worker || ' ' || test_name || ' due ' || due_on from v_due where standing in ('overdue', 'baseline overdue') union all select 3, standing, ref, worker || ' ' || test_code || ' ' || done_on from v_reports where standing in ('report not obtained', 'worker not given copy') union all select 3, standing, ref, worker || ' ' || sample from v_dna where standing in ('non-negative not sent to lab', 'lab result overdue', 'employer not told')) x order by r, item, ref"
+      },
+      {
+        "title": "Due in the next 30 days",
+        "sql": "select worker, employer, grp as group_code, test_name as test, due_on, standing from v_due where standing in ('due soon', 'baseline due') order by due_on"
+      },
+      {
+        "title": "Follow-up actions open",
+        "sql": "select a.ref, w.name as worker, a.what, a.due_on, case when a.due_on < current_date then 'overdue' else 'open' end as standing from actions a join workers w on w.id = a.worker_id where a.done_on is null order by a.due_on"
+      }
+    ]
+  },
+  {
+    "name": "recall",
+    "title": "Recall list",
+    "subtitle": "Every test every worker needs, soonest first, with the rule that sets the date",
+    "sections": [
+      {
+        "title": "Not current",
+        "sql": "select employer, worker, grp as group_code, test_name as test, last_on, due_on, days_left, standing, rule from v_due where standing <> 'current' order by due_on, employer, worker"
+      },
+      {
+        "title": "By exposure group",
+        "sql": "select grp as group_code, employer, count(distinct worker_id)::int as workers, count(*) filter (where standing in ('overdue', 'baseline overdue'))::int as overdue, count(*) filter (where standing in ('due soon', 'baseline due'))::int as due_soon from v_due group by grp, employer order by overdue desc, grp"
+      }
+    ]
+  },
+  {
+    "name": "lead",
+    "title": "Lead register",
+    "subtitle": "Every worker in lead risk work: last blood lead against the removal and return levels",
+    "sections": [
+      {
+        "title": "Workers",
+        "sql": "select worker_code as code, worker, employer, blood_lead, last_on, removal_level, return_level, removal, standing from v_lead order by blood_lead desc nulls last"
+      },
+      {
+        "title": "Removals",
+        "sql": "select r.ref, w.name as worker, r.removed_on, r.reason, r.regulator_on, r.returned_on, r.cleared_by from removals r join workers w on w.id = r.worker_id order by r.removed_on desc"
+      }
+    ]
+  },
+  {
+    "name": "money",
+    "title": "Money",
+    "subtitle": "Done and not invoiced, and invoices not paid",
+    "sections": [
+      {
+        "title": "Done, not invoiced",
+        "sql": "select employer, currency, count(*)::int as items, sum(amount_cents)::bigint as amount_cents, min(day) as oldest from v_unbilled group by employer, currency order by employer"
+      },
+      {
+        "title": "Invoices not paid",
+        "sql": "select i.ref, e.code as employer, i.currency, i.total_cents, i.raised_on, i.due_on, i.sent_on, case when i.sent_on is null then 'not sent' when i.due_on < current_date then 'overdue' else 'sent' end as standing from invoices i join employers e on e.id = i.employer_id where i.paid_on is null order by i.due_on"
       }
     ]
   }

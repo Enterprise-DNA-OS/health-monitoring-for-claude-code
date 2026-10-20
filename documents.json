@@ -1,11 +1,43 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
+    "name": "health-monitoring-report",
+    "title": "Health monitoring report",
+    "for_each": "select id, ref from tests where report_on is not null order by ref",
+    "file": "ref",
+    "sections": [
+      { "title": "Worker and business", "note": "The contents a health monitoring report must have: HSW (GRWM) Regulations 2016 reg 38(2) (NZ), WHS Regulations r 374 (AU).", "sql": "select w.name as worker, w.dob as date_of_birth, e.name as business, e.address, t.practitioner, t.done_on as date_of_monitoring from tests t join workers w on w.id = t.worker_id join employers e on e.id = t.employer_id where t.id = $1" },
+      { "title": "Result", "sql": "select tt.name as test, t.kind, t.value, tt.unit, t.result, case when t.disease_indicated then 'Yes' else 'No' end as disease_indicated, case when t.remedial_recommended then 'Yes' else 'No' end as remedial_measures, t.recommendation, t.fit as can_continue_the_work from tests t join test_types tt on tt.code = t.test_code where t.id = $1" },
+      { "title": "Who has a copy", "note": "Not disclosed to anyone else without the worker's written consent (NZ reg 42(2), AU r 378(2)).", "sql": "select t.report_on as report_obtained, t.worker_copy_on as worker_copy, coalesce(t.regulator_on::text, case when r.regulator_needed then 'NOT YET' else 'not required' end) as regulator_copy from tests t join v_reports r on r.id = t.id where t.id = $1" }
+    ]
+  },
+  {
+    "name": "recall-list",
+    "title": "Health monitoring recall list",
+    "for_each": "select id, name from employers order by code",
     "file": "name",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      { "title": "Due in the next 45 days or overdue", "sql": "select worker, grp as group_code, test_name as test, due_on, standing, rule from v_due where employer_id = $1 and due_on <= current_date + 45 order by due_on, worker" },
+      { "title": "Exposure groups and their programme", "sql": "select g.code, g.name, gt.test_code as test, gt.hazard_code as hazard, coalesce(gt.interval_months::text || ' months', 'set by law') as every from groups g join group_tests gt on gt.group_id = g.id where g.employer_id = $1 order by g.code, gt.test_code" }
+    ]
+  },
+  {
+    "name": "lead-removal-notice",
+    "title": "Removal from lead risk work",
+    "for_each": "select id, ref from removals order by ref",
+    "file": "ref",
+    "sections": [
+      { "title": "Removal", "note": "WHS Regulations r 415: the regulator is notified as soon as practicable. r 417: return only below the return level and with a doctor's clearance.", "sql": "select r.ref, w.name as worker, w.dob as date_of_birth, e.name as business, r.removed_on, r.reason, r.regulator_on as regulator_notified, r.returned_on, r.cleared_by from removals r join workers w on w.id = r.worker_id join employers e on e.id = w.employer_id where r.id = $1" },
+      { "title": "Blood lead results", "sql": "select t.ref, t.done_on, t.value as blood_lead_ug_dl, t.result, t.practitioner from tests t join removals r on r.worker_id = t.worker_id where r.id = $1 and t.test_code = 'blood-lead' order by t.done_on desc limit 6" }
+    ]
+  },
+  {
+    "name": "invoice",
+    "title": "Tax invoice",
+    "for_each": "select id, ref from invoices order by ref",
+    "file": "ref",
+    "sections": [
+      { "title": "Invoice", "sql": "select i.ref, e.name as employer, i.period_from, i.period_to, i.raised_on, i.due_on, i.currency, i.subtotal_cents, i.gst_cents, i.total_cents from invoices i join employers e on e.id = i.employer_id where i.id = $1" },
+      { "title": "Tests", "sql": "select t.ref, w.name as worker, tt.name as test, t.done_on, t.price_cents as amount_cents, i.currency from tests t join workers w on w.id = t.worker_id join test_types tt on tt.code = t.test_code join invoices i on i.id = t.invoice_id where t.invoice_id = $1 union all select d.ref, w.name, 'Drug and alcohol: ' || d.reason || ', ' || d.sample, d.collected_at::date, d.price_cents, i.currency from dna_tests d join workers w on w.id = d.worker_id join invoices i on i.id = d.invoice_id where d.invoice_id = $1 order by 4, 1" }
     ]
   }
 ]

@@ -1,0 +1,6 @@
+Test ID,Employee ID,Test Type,Test Date,Result Value,Result,Clinician,Hazard
+88101,E-2201,Audiometry,12/09/2025,5,Normal,J. Pomare RN,noise
+88102,E-2201,Spirometry,12/09/2025,93,Normal,J. Pomare RN,silica
+88103,E-2202,Audiometry,02/10/2025,11,Abnormal,J. Pomare RN,noise
+88104,E-2202,Spirometry,02/10/2025,96,Normal,J. Pomare RN,silica
+88105,E-2203,Chest X-Ray,20/01/2025,,Normal,Dr A. Kerr,silica
